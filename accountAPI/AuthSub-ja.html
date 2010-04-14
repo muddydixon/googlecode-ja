@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja">
+	<head>
+		<meta charset="UTF-8" />
+		<title>AuthSub</title>
+		<link rel="stylesheet" type="text/css" href="/css/googledocs.css" media="screen" />
+	</head>
+	<body>
+		<header>
+			<section id="note">
+				<p>
+					一部、直訳ではなく意訳した部分がございます。
+					原文と表現が異なることがございますので、ご了承ください。
+					この日本語訳は、私が理解を深めるために、自分なりに日本語化したものです。
+					本日本語訳には、翻訳上の誤りがある可能性があります。
+					したがって、内容について一切保証をするものではありません。
+					正確さを求める場合には、必ず原文を参照してください。
+					当方は、この文書によって利用者が被るいかなる損害の責任を負いません。
+					もし誤りなどを見つけたら、muddydixon [at] gmail.comまで、お問い合わせより連絡いただければ幸いです。
+				</p>
+			</section>
+		</header>
+		<div id="content">
+			<h1>WebアプリケーションのためのAuthSub</h1>
+			<cite>元ページ:<a href="http://code.google.com/intl/ja/apis/accounts/docs/AuthSub.html">AuthSub for Web Applications - Account APIs - Google Code</a></cite>
+			<section>
+				<p>
+					ユーザの Google アカウントまたは Google Apps のアカウントで保護されたサービスへのアクセスを必要としている Web アプリケーションは、認証 proxy サービスを利用することでアクセスが可能になります。
+					高いレベルでのセキュリティレベルを維持するために、AuthSub と呼ばれる proxy インタフェイスが、ユーザのアカウントによるログイン情報を取り扱うことなく、Web アプリケーションによるアクセスを可能にしました。
+					これを使う以前は、アクセスされる Google サービスの照合は、認証サービスによってサポートされていました。
+				</p>
+				<p class="note">
+					<b>注釈</b>もし、あなたのアプリケーションが Google Data API 用の JavaScript クライアントライブラリを用いるのであれば、  <a href="js-authsub.html">JavaScript インタフェイスのための AuthSub</a> にアクセスするライブラリメソッドを用いる必要があります。
+				</p>
+				<p>
+					開発者は、セキュアなトークンか非セキュアなトークンのどちらかの認証を選択することができます。セキュアなトークンを利用するためには、
+					<a href="#registeredApps">Google に Web アプリケーションを登録</a>し、証明書をファイルとしてっておく必要があります。
+					もし、登録されたならば、 Web アプリケーションは、デジタル署名によって、すべてのリクエストを確保することができます。
+					このページは、 AuthSub を含む認証サービスをあなたの Web ベースアプリケーションに組み込む方法を説明したものです。
+					Account API グループの Account API の利用に関するディスカッションもご確認ください。
+					Google のその他のアカウント認証のソリューションの情報は、<a href="GettingStarted.html">はじめに</a> のガイドを御覧下さい。
+				</p>
+				<nav>
+					<h3>目次</h3>
+					<ul>
+						<li><a href="#">AuthSubの認証プロセス</a>
+							<ul>
+								<li><a href="#">トークンとトークンの管理</a></li>
+								<li><a href="#">登録</a></li>
+							</ul>
+						</li>
+						<li><a href="#">AuthSubの動作</a></li>
+						<li><a href="#">AuthSubのインタフェイス</a>
+							<ul>
+								<li><a href="#">AuthSubRequest</a></li>
+								<li><a href="#">AuthSubSessionToken</a></li>
+								<li><a href="#">AuthSubRevokeToken</a></li>
+								<li><a href="#">AuthSubTokenInfo</a></li>
+							</ul>
+						</li>
+						<li><a href="#">特別なトピックス</a>
+							<ul>
+								<li><a href="#">署名付きリクエスト</a></li>
+								<li><a href="#">シングルサインオン</a></li>
+							</ul>
+						</li>
+					</ul>
+				</nav>
+				<h3>ターゲット聴衆</h3>
+				<p>
+					本ドキュメントは、 Google サービスの利用者とやりとりをする Web アプリケーションの開発者、アクセスを増やすプログラム的な方法として実装を望んでいる開発者に向けたものです。
+					アクセスされるサービスの調査は終えて、アクセス/認証に関する文書は知っていると想定しています。
+					Authorization proxy サービスの組み込み時に、サービス特異的な詳細を知りたがっているものとします。
+				</p>
+				<h3>シナリオ例</h3>
+				<p>
+					Google Calendar のユーザは、スケジュールを管理し、イベントの追加、更新、削除を行い、スケジュールの情報を共有しています。
+					このシナリオでは、ユーザの利益のために、ユーザの Google Calendar のデータにアクセスし、データを操作する Web アプリケーションを望んでいるとします。
+
+					これを実現するために、あなたのアプリケーションでは、ユーザの Google Calendar アカウントにアクセスすることが必要です。
+					カレンダーサービスにアクセスする前に、アプリケーションは、 Google からの認証リクエストを行わなければなりません。
+					これを、 Google Authorization URL と呼び、アクセスするサービスの名前など、いくつかの必須情報を提供します。
+					ユーザには自身の Google Calendar アカウントへのアクセスを提供することを許諾・拒否のプロンプトが Google のページに表示されます。
+					もし、ユーザが同意すれば、 Google はユーザにあなたの Web アプリケーションに戻るようリダイレクトし、サービスにリクエストするための認証トークンが提供されます。
+					以後、あなたの Web アプリケーションは、各リクエストに対してこのトークンを参照することで、直接、 Google サービスにリクエストを行うことができるようになります。
+				</p>
+			</section>
+			<section>
+			</section>
+		</div>
+		<footer>
+		</footer>
+	</body>
+</html>
